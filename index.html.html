@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<title>QC Barcode Verifier</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+<style>
+:root{
+  --bg:#E4E5E1; --panel:#F6F6F3; --label:#FFFFFF; --ink:#1A1C1E; --ink2:#50555A; --line:#C3C6C0;
+  --kraft:#B8894F; --kraft-deep:#8A6331; --steel:#5E6468;
+  --pass:#1D7A3A; --pass-bg:#E3F2E6; --fail:#C22A2A; --fail-bg:#FBE6E4; --warn:#9A6400; --warn-bg:#FFF1D6;
+  --focus:#1F5FBF;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"Barlow","Segoe UI",Roboto,Arial,sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1B1D1F; --panel:#24272A; --label:#2E3236; --ink:#EDEEEA; --ink2:#A9AEB2; --line:#3C4145;
+    --kraft:#C99A5E; --kraft-deep:#E0B47A; --steel:#9AA1A5;
+    --pass:#5CC47A; --pass-bg:#15301D; --fail:#FF7A6E; --fail-bg:#3A1A18; --warn:#F0B44C; --warn-bg:#352812; --focus:#7FAEFF;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1B1D1F; --panel:#24272A; --label:#2E3236; --ink:#EDEEEA; --ink2:#A9AEB2; --line:#3C4145;
+  --kraft:#C99A5E; --kraft-deep:#E0B47A; --steel:#9AA1A5;
+  --pass:#5CC47A; --pass-bg:#15301D; --fail:#FF7A6E; --fail-bg:#3A1A18; --warn:#F0B44C; --warn-bg:#352812; --focus:#7FAEFF;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 17px/1.45 var(--body);-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.wrap{max-width:1280px;margin:0 auto;padding:12px 16px 40px}
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:6px 0 12px;border-bottom:2px solid var(--ink)}
+.brand{font:700 28px/1 var(--display);margin-right:auto}
+.brand small{display:block;font:500 14px/1.3 var(--body);color:var(--ink2)}
+.tabs{display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px}
+.tabs button{border:0;background:none;padding:10px 16px;border-radius:7px;font-weight:600;min-height:44px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--ink);color:var(--bg)}
+.pill{border:1.5px solid var(--line);background:var(--panel);border-radius:999px;padding:8px 14px;min-height:44px;font-size:14px;font-weight:600;cursor:pointer}
+.pill.ok{border-color:var(--pass);color:var(--pass)} .pill.wait{border-color:var(--warn);color:var(--warn)} .pill.off{color:var(--ink2)}
+.listinfo{font-size:14px;color:var(--ink2);margin-top:8px}
+.grid{display:grid;grid-template-columns:minmax(300px,400px) 1fr;gap:16px;margin-top:14px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+h2{font:700 22px/1.1 var(--display);margin:0 0 12px}
+label.f{display:block;font-size:14px;color:var(--ink2);margin:14px 0 4px}
+input[type=text],input[type=search],input[type=url],select{width:100%;min-height:48px;padding:10px 12px;border:1.5px solid var(--line);border-radius:8px;background:var(--label)}
+input:focus,select:focus{border-color:var(--focus);outline:none}
+.seg{display:grid;grid-template-columns:1fr 1fr;border:1.5px solid var(--ink);border-radius:9px;overflow:hidden}
+.seg button{border:0;background:var(--label);padding:10px 12px;min-height:60px;cursor:pointer;text-align:left;line-height:1.2}
+.seg button b{display:block;font:700 22px/1 var(--display)}
+.seg button span{font-size:13px;color:var(--ink2)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.seg button[aria-pressed="true"] span{color:var(--bg);opacity:.8}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.chips button{border:1.5px solid var(--line);background:var(--label);border-radius:999px;padding:6px 12px;min-height:40px;cursor:pointer;font-size:14px}
+.chips button[aria-pressed="true"]{border-color:var(--kraft-deep);background:var(--kraft);color:#1A1C1E;font-weight:600}
+.picklist{max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:8px;margin-top:6px;background:var(--label)}
+.picklist button{display:grid;grid-template-columns:110px 1fr;gap:8px;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;padding:10px 12px;cursor:pointer;min-height:52px}
+.picklist button:last-child{border-bottom:0}
+.picklist .m{font:700 18px/1.2 var(--display)} .picklist .d{font-size:14px;color:var(--ink2)}
+.picked{border:2px solid var(--kraft);border-radius:10px;padding:12px;background:var(--label);margin-top:8px}
+.picked .m{font:700 30px/1 var(--display)} .picked .d{font-size:14px;color:var(--ink2);margin-top:4px}
+.picked .c{font:600 22px/1 var(--display);letter-spacing:1.5px;margin-top:8px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1.5px solid var(--ink);background:var(--label);border-radius:9px;padding:10px 16px;min-height:52px;font-weight:600;cursor:pointer}
+.btn.primary{background:var(--ink);color:var(--bg)}
+.btn.small{min-height:42px;padding:6px 12px;font-size:15px}
+.btn.link{border-color:transparent;background:none;text-decoration:underline;padding:6px 4px;min-height:40px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.muted{color:var(--ink2);font-size:14px} .note{font-size:14px;color:var(--ink2);margin:8px 0 0}
+.inputs{display:grid;grid-template-columns:1fr;gap:10px}
+.inputs .btn{min-height:84px;font-size:20px}
+.camwrap{position:relative;margin-top:12px;border-radius:10px;overflow:hidden;background:#000;display:none}
+.camwrap.on{display:block}
+.camwrap video{display:block;width:100%;max-height:52vh;object-fit:cover}
+.camwrap .band{position:absolute;left:8%;right:8%;top:32%;bottom:32%;border:3px solid rgba(255,255,255,.9);border-radius:6px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}
+.camwrap .band::after{content:"";position:absolute;left:0;right:0;top:50%;height:2px;background:#ff3b30;opacity:.8}
+.camctl{position:absolute;right:8px;bottom:8px;display:flex;gap:6px}
+.camctl .btn{min-height:44px;background:rgba(255,255,255,.92);color:#111;border-color:#fff}
+.status{margin-top:10px;font-size:15px;min-height:22px}
+.verdict{margin-top:12px;background:var(--label);border:2px solid var(--ink);border-radius:6px;position:relative;overflow:hidden}
+.verdict::before{content:"";position:absolute;inset:0 auto 0 0;width:14px;background:var(--steel)}
+.verdict.pass::before{background:var(--pass)} .verdict.fail::before{background:var(--fail)} .verdict.warn::before{background:var(--warn)}
+.vin{padding:14px 16px 16px 30px}
+.vword{font:700 clamp(56px,11vw,112px)/.9 var(--display)}
+.verdict.pass .vword{color:var(--pass)} .verdict.fail .vword{color:var(--fail)} .verdict.warn .vword{color:var(--warn)}
+.verdict.idle .vword{font-size:clamp(34px,6vw,54px);color:var(--ink2)}
+.vwhy{font:600 20px/1.25 var(--body);margin-top:6px}
+.vcode{font:600 clamp(26px,4.2vw,40px)/1 var(--display);letter-spacing:3px;margin-top:14px;white-space:nowrap;overflow-x:auto}
+.vmeta{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin-top:12px;font-size:15px}
+.vmeta dt{color:var(--ink2)} .vmeta dd{margin:0;font-weight:500}
+.vactions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.remark{margin-top:14px;border-top:1px dashed var(--line);padding-top:12px}
+.remark .row{display:flex;gap:8px}
+.remark input{font:600 20px/1 var(--display);letter-spacing:1px}
+.remark .btn{min-width:110px}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--ink2);font-size:13px;position:sticky;top:0;background:var(--panel)}
+.tscroll{overflow-x:auto;max-width:100%;max-height:65vh;overflow-y:auto}
+.tag{display:inline-block;padding:2px 8px;border-radius:5px;font-size:13px;font-weight:600;white-space:nowrap}
+.tag.pass{background:var(--pass-bg);color:var(--pass)} .tag.fail{background:var(--fail-bg);color:var(--fail)} .tag.warn{background:var(--warn-bg);color:var(--warn)}
+.code{font:600 17px/1.2 var(--display);letter-spacing:1px;white-space:nowrap}
+.mhead{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.mhead input[type=search]{flex:1 1 240px}
+.mtable{max-height:65vh;overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--label)}
+.mtable td input{min-height:38px;padding:4px 6px;font-size:15px}
+.flag{font-size:13px;font-weight:600} .flag.bad{color:var(--fail)} .flag.w{color:var(--warn)}
+.banner{border-left:5px solid var(--warn);background:var(--warn-bg);padding:10px 12px;border-radius:6px;margin:10px 0;font-size:15px}
+.banner.err{border-color:var(--fail);background:var(--fail-bg)}
+.hidden{display:none!important}
+dialog{border:2px solid var(--ink);border-radius:12px;background:var(--panel);color:var(--ink);max-width:560px;width:calc(100% - 32px);padding:20px}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:10px;font-weight:600;z-index:50;max-width:90vw}
+@media (prefers-reduced-motion:no-preference){.verdict.flash{animation:fl .35s ease-out}@keyframes fl{from{transform:scale(.98);opacity:.4}to{transform:none;opacity:1}}}
+.userchip{display:flex;align-items:center;gap:8px;font-weight:600}
+.userchip span{font-size:15px}
+.login{max-width:440px;margin:40px auto 0}
+.login .btn{width:100%;margin-top:16px;min-height:60px;font-size:19px}
+.login input{font-size:20px}
+.err{color:var(--fail);font-weight:600;min-height:24px;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">QC Barcode Verifier<small>Check the label code matches the model</small></div>
+    <button class="pill off" id="syncPill" type="button">Google Sheet: not set up</button>
+    <div class="userchip hidden" id="userChip"><span id="userName"></span><button class="btn small" id="logoutBtn" type="button">Log out</button></div>
+  </header>
+  <div class="listinfo" id="listinfo">Loading code list…</div>
+  <div id="globalBanner"></div>
+
+  <section class="panel login hidden" id="loginView">
+    <h2>QC log in</h2>
+    <label class="f" for="loginId">Name</label>
+    <select id="loginId"><option value="">Loading names…</option></select>
+    <label class="f" for="loginPin">PIN</label>
+    <input type="password" id="loginPin" autocomplete="current-password" inputmode="numeric" placeholder="PIN">
+    <button class="btn primary" id="loginBtn" type="button">Log in</button>
+    <div class="err" id="loginErr" role="alert"></div>
+    <p class="note">Your name not in the list? Ask the QC owner to add you. Log in needs internet; scanning keeps working if Wi-Fi drops afterwards.</p>
+  </section>
+
+  <div class="grid hidden" id="appView">
+    <div class="panel">
+      <h2>1. Pick the model</h2>
+      <div class="seg" role="group" aria-label="Inspection type">
+        <button type="button" data-mode="IPQC" aria-pressed="true"><b>IPQC</b><span>Packaging label UPC</span></button>
+        <button type="button" data-mode="IQC" aria-pressed="false"><b>IQC</b><span>Carton bar code</span></button>
+      </div>
+      <div class="chips" id="custChips"></div>
+      <label class="f" for="modelSearch">Model</label>
+      <input type="search" id="modelSearch" placeholder="Type model, size or description" autocomplete="off">
+      <div class="picklist hidden" id="picklist"></div>
+      <div id="pickedBox"></div>
+    </div>
+
+    <div class="panel">
+      <h2>2. Scan the label</h2>
+      <div class="inputs"><button class="btn primary" id="camBtn" type="button">Open camera</button></div>
+      <div class="camwrap" id="camwrap">
+        <video id="video" playsinline muted></video>
+        <div class="band" aria-hidden="true"></div>
+        <div class="camctl">
+          <button class="btn small hidden" id="torchBtn" type="button">Light</button>
+          <button class="btn small" id="camStop" type="button">Close camera</button>
+        </div>
+      </div>
+      <div class="status" id="status" role="status" aria-live="polite"></div>
+      <div class="verdict idle" id="verdict">
+        <div class="vin">
+          <div class="vword" id="vword">Ready</div>
+          <div class="vwhy" id="vwhy"></div>
+          <div class="vcode" id="vcode"></div>
+          <dl class="vmeta" id="vmeta"></dl>
+          <div class="vactions" id="vactions"></div>
+          <div class="remark hidden" id="remarkBox">
+            <label class="f" for="remarkTxt" style="margin-top:0">3. Copy into the form's Remarks</label>
+            <div class="row"><input type="text" id="remarkTxt" readonly><button class="btn primary" id="copyRemark" type="button">Copy</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<dialog id="sheetDlg">
+  <h2>Google Sheet link</h2>
+  <p class="muted">Paste the Apps Script Web App URL (ends with /exec). Saved on this tablet.</p>
+  <label class="f" for="sheetUrl">Web App URL</label>
+  <input type="url" id="sheetUrl" placeholder="https://script.google.com/macros/s/…/exec">
+  <p class="status" id="sheetTest"></p>
+  <div class="vactions">
+    <button class="btn primary" id="sheetSave" type="button">Save and test</button>
+    <button class="btn" id="sheetClose" type="button">Close</button>
+  </div>
+</dialog>
+
+<script>
+/* ============ SETTINGS: paste your Apps Script Web App URL between the quotes ============ */
+const DEFAULT_SHEET_URL = 'https://script.google.com/macros/s/AKfycbx-HH3gk4svBFVWOlpE6MzYDFsZDoJdQ5vTJWWHp0TfI_xR3gSpSNYs6QEz5NXGcgWn/exec';
+/* ======================================================================================== */
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const digits = s => String(s ?? '').replace(/\D/g, '');
+function gs1ok(c){
+  if (!/^(\d{8}|\d{12}|\d{13}|\d{14})$/.test(c)) return false;
+  let s = 0; const b = c.slice(0, -1);
+  for (let i = 0; i < b.length; i++) s += (+b[b.length - 1 - i]) * (i % 2 === 0 ? 3 : 1);
+  return (10 - s % 10) % 10 === +c.slice(-1);
+}
+const key14 = c => c.padStart(14, '0');
+function fmtCode(c){
+  if (!c) return '';
+  if (c.length === 12) return `${c[0]} ${c.slice(1,6)} ${c.slice(6,11)} ${c[11]}`;
+  if (c.length === 13) return `${c[0]} ${c.slice(1,7)} ${c.slice(7)}`;
+  if (c.length === 14) return `${c[0]} ${c.slice(1,3)} ${c.slice(3,8)} ${c.slice(8,13)} ${c[13]}`;
+  return c;
+}
+const LS = {
+  get(k, d){ try { const v = localStorage.getItem('qcbv:' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v){ try { localStorage.setItem('qcbv:' + k, JSON.stringify(v)); } catch {} }
+};
+const pad = n => String(n).padStart(2, '0');
+const dStr = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const tStr = d => `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+
+const S = { items: [], mode: 'IPQC', customer: '', expected: null,
+  sheetUrl: DEFAULT_SHEET_URL || LS.get('sheetUrl', ''), device: LS.get('device', null) };
+if (!S.device){ S.device = 'T' + Math.random().toString(36).slice(2, 7).toUpperCase(); LS.set('device', S.device); }
+
+let actx = null;
+function beep(ok){
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    let t = actx.currentTime;
+    for (const [f, d] of (ok ? [[1320, .1]] : [[330, .22], [260, .3]])){
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = ok ? 'sine' : 'square'; o.frequency.value = f; g.gain.value = .15;
+      o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + d); t += d + .05;
+    }
+  } catch {}
+  try { navigator.vibrate && navigator.vibrate(ok ? 60 : [200, 80, 200]); } catch {}
+}
+function toast(msg){ const el = document.createElement('div'); el.className = 'toast'; el.textContent = msg; document.body.appendChild(el); setTimeout(() => el.remove(), 2600); }
+const setStatus = t => { $('#status').textContent = t || ''; };
+const banner = (html, err) => { $('#globalBanner').innerHTML = html ? `<div class="banner ${err ? 'err' : ''}">${html}</div>` : ''; };
+
+/* ---------- code list from Google Sheet ---------- */
+function normItem(i){
+  return { form: String(i.form || '').trim().toUpperCase() === 'IQC' ? 'IQC' : 'IPQC', customer: String(i.customer ?? '').trim(),
+           model: String(i.model ?? '').trim(), desc: String(i.desc ?? '').trim(), code: digits(i.code), alt: String(i.alt ?? '').trim() };
+}
+function applyList(items, label){
+  S.items = (items || []).map(normItem).filter(i => i.model);
+  if (S.expected) S.expected = S.items.find(i => i.model === S.expected.model && i.form === S.expected.form) || null;
+  $('#listinfo').textContent = `${S.items.length} models loaded · ${label}`;
+  renderChips(); renderPick();
+}
+async function sheetGetCodes(url){
+  let r;
+  try { r = await fetch(url + (url.includes('?') ? '&' : '?') + 'action=codes', { redirect: 'follow' }); }
+  catch { throw new Error('no connection to Google (check internet, or the URL)'); }
+  let j; try { j = await r.json(); } catch { throw new Error('the URL did not return data — check the deployment access is “Anyone”'); }
+  if (!j || !j.ok || !Array.isArray(j.items)) throw new Error(j && j.error || 'unexpected reply');
+  if (!j.items.length) throw new Error('the code list sheet is empty');
+  return j.items;
+}
+async function loadList(){
+  if (!S.sheetUrl){
+    $('#listinfo').textContent = 'No code list.';
+    banner('This file has no Google Sheet link yet. Tap the “Google Sheet” button at the top and paste the Web App URL.', true); return;
+  }
+  $('#listinfo').textContent = 'Loading code list from Google Sheet…';
+  try {
+    const items = await sheetGetCodes(S.sheetUrl);
+    LS.set('sheetList', { items, at: new Date().toISOString() });
+    applyList(items, 'from Google Sheet, loaded ' + tStr(new Date()).slice(0, 5)); banner('');
+  } catch (e){
+    const c = LS.get('sheetList', null);
+    if (c){ applyList(c.items, 'saved copy from ' + new Date(c.at).toLocaleString()); banner('Could not reach the Google Sheet (' + esc(e.message) + '). Using the last saved code list.'); }
+    else { $('#listinfo').textContent = 'No code list.'; banner('Code list could not load: ' + esc(e.message) + '.', true); }
+  }
+}
+
+/* ---------- scan log upload ---------- */
+let flushing = false;
+async function flushLog(){
+  if (!S.sheetUrl || flushing) return;
+  const pending = LS.get('log', []).filter(r => !r.up);
+  if (!pending.length){ renderPill(); return; }
+  flushing = true;
+  try {
+    const r = await fetch(S.sheetUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'log', rows: pending }) });
+    const j = await r.json();
+    if (j && j.ok){
+      const done = new Set([].concat(j.accepted || [], (j.rejected || []).map(x => x.id)));
+      const cur = LS.get('log', []); cur.forEach(x => { if (done.has(x.id)){ x.up = true; if ((j.rejected || []).some(r => r.id === x.id)) x.rejected = true; } });
+      LS.set('log', cur.slice(0, 1000));
+      if ((j.rejected || []).length) banner(`${j.rejected.length} scan(s) were refused by the Google Sheet (session not valid). Log out and log in again.`, true);
+    }
+  } catch {} finally { flushing = false; renderPill(); }
+}
+function renderPill(){
+  const p = $('#syncPill');
+  if (!S.sheetUrl){ p.className = 'pill off'; p.textContent = 'Google Sheet: not set up'; return; }
+  const n = LS.get('log', []).filter(r => !r.up).length;
+  p.className = 'pill ' + (n ? 'wait' : 'ok');
+  p.textContent = n ? `Google Sheet: ${n} waiting to upload` : 'Google Sheet: connected';
+}
+$('#syncPill').addEventListener('click', async () => {
+  if (DEFAULT_SHEET_URL){ await loadList(); await flushLog(); toast('Code list reloaded.'); return; }
+  $('#sheetUrl').value = S.sheetUrl; $('#sheetTest').textContent = ''; $('#sheetDlg').showModal();
+});
+$('#sheetClose').addEventListener('click', () => $('#sheetDlg').close());
+$('#sheetSave').addEventListener('click', async () => {
+  const u = $('#sheetUrl').value.trim();
+  if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(u)){ $('#sheetTest').textContent = 'The link must start with https://script.google.com/ and end with /exec.'; return; }
+  $('#sheetTest').textContent = 'Testing…';
+  try { const items = await sheetGetCodes(u); S.sheetUrl = u; LS.set('sheetUrl', u); $('#sheetTest').textContent = `Connected. ${items.length} models found.`; await loadList(); flushLog(); }
+  catch (e){ $('#sheetTest').textContent = 'Could not connect: ' + e.message + '.'; }
+});
+
+/* ---------- model picking ---------- */
+function renderChips(){
+  const cs = Array.from(new Set(S.items.filter(i => i.form === S.mode).map(i => i.customer).filter(Boolean)));
+  if (S.customer && !cs.includes(S.customer)) S.customer = '';
+  $('#custChips').innerHTML = cs.length > 1 ? [''].concat(cs).map(c => `<button type="button" data-cust="${esc(c)}" aria-pressed="${S.customer === c}">${c ? esc(c) : 'All'}</button>`).join('') : '';
+}
+function renderPick(){
+  const q = $('#modelSearch').value.trim().toUpperCase(), qd = digits(q), pl = $('#picklist');
+  if (document.activeElement === $('#modelSearch') || q){
+    const list = S.items.filter(i => i.form === S.mode && (!S.customer || i.customer === S.customer) &&
+      (!q || i.model.toUpperCase().includes(q) || i.desc.toUpperCase().includes(q) || i.alt.toUpperCase().includes(q) || (qd.length >= 4 && i.code.includes(qd)))).slice(0, 80);
+    pl.innerHTML = list.length ? list.map(i => `<button type="button" data-model="${esc(i.model)}"><span class="m">${esc(i.model)}</span><span class="d">${esc(i.desc || i.alt || i.customer)}</span></button>`).join('')
+      : `<div class="muted" style="padding:12px">${S.items.length ? 'No model matches.' : 'Code list not loaded — see the message at the top.'}</div>`;
+    pl.classList.remove('hidden');
+  } else pl.classList.add('hidden');
+  const e = S.expected;
+  $('#pickedBox').innerHTML = e ? `<div class="picked"><div class="m">${esc(e.model)}</div><div class="d">${esc(e.desc)}${e.alt ? ' · ' + esc(e.alt) : ''}${e.customer ? ' · ' + esc(e.customer) : ''}</div>
+    <div class="c">${e.code ? esc(fmtCode(e.code)) : '<span class="flag bad">No code in list for this model</span>'}</div>
+    <button class="btn link" type="button" id="clearPick">Change model</button></div>` : '';
+}
+function pickModel(model){
+  const it = S.items.find(i => i.model === model && i.form === S.mode); if (!it) return;
+  S.expected = it; $('#modelSearch').value = ''; $('#modelSearch').blur(); renderPick(); idleVerdict();
+}
+$$('.seg button').forEach(b => b.addEventListener('click', () => {
+  if (S.mode === b.dataset.mode) return;
+  S.mode = b.dataset.mode; S.customer = ''; S.expected = null;
+  $$('.seg button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  renderChips(); renderPick(); idleVerdict();
+}));
+$('#custChips').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.customer = b.dataset.cust; renderChips(); $('#modelSearch').focus(); renderPick(); });
+$('#modelSearch').addEventListener('input', renderPick);
+$('#modelSearch').addEventListener('focus', renderPick);
+$('#modelSearch').addEventListener('blur', () => setTimeout(renderPick, 180));
+$('#picklist').addEventListener('mousedown', e => e.preventDefault());
+$('#picklist').addEventListener('click', e => { const b = e.target.closest('button[data-model]'); if (b) pickModel(b.dataset.model); });
+$('#pickedBox').addEventListener('click', e => { if (e.target.id === 'clearPick'){ S.expected = null; renderPick(); $('#modelSearch').focus(); idleVerdict(); } });
+
+/* ---------- decoding ---------- */
+let detector = null, zreader = null;
+async function initDetector(){
+  try { if ('BarcodeDetector' in window){ const sup = await BarcodeDetector.getSupportedFormats();
+    const f = ['upc_a', 'ean_13', 'itf', 'code_128', 'upc_e', 'ean_8'].filter(x => sup.includes(x)); if (f.length) detector = new BarcodeDetector({ formats: f }); } } catch { detector = null; }
+}
+function zx(){
+  if (!window.ZXing) return null;
+  if (!zreader){ const Z = window.ZXing, h = new Map();
+    h.set(Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.ITF, Z.BarcodeFormat.CODE_128, Z.BarcodeFormat.UPC_E, Z.BarcodeFormat.EAN_8]);
+    h.set(Z.DecodeHintType.TRY_HARDER, true); zreader = new Z.MultiFormatReader(); zreader.setHints(h); }
+  return zreader;
+}
+function greyFrom(ctx, w, h){ const d = ctx.getImageData(0, 0, w, h).data, g = new Uint8ClampedArray(w * h);
+  for (let i = 0, j = 0; j < g.length; i += 4, j++) g[j] = (d[i] * 77 + d[i + 1] * 150 + d[i + 2] * 29) >> 8; return g; }
+function zxGrey(g, w, h){
+  const r = zx(); if (!r) return null; const Z = window.ZXing;
+  try { return r.decode(new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.RGBLuminanceSource(g, w, h)))).getText(); }
+  catch { return null; } finally { try { r.reset(); } catch {} }
+}
+
+/* ---------- live camera ---------- */
+let stream = null, camTimer = null, camBusy = false, lastRead = '', sameCount = 0, camPaused = true, track = null, torchOn = false;
+const cv = document.createElement('canvas'), cctx = cv.getContext('2d', { willReadFrequently: true });
+$('#camBtn').addEventListener('click', startCam);
+$('#camStop').addEventListener('click', stopCam);
+async function startCam(){
+  if (stream){ resumeCam(); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ setStatus('This browser cannot open the camera. Use Chrome.'); return; }
+  try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false }); }
+  catch (err){ stream = null; setStatus(err && err.name === 'NotAllowedError' ? 'Camera permission is blocked. Tap the lock icon in the address bar → Camera → Allow, then reload.' : 'Camera could not start (' + (err && err.name || 'error') + ').'); return; }
+  const v = $('#video'); v.srcObject = stream; await v.play().catch(() => {});
+  $('#camwrap').classList.add('on'); $('#camBtn').classList.add('hidden'); track = stream.getVideoTracks()[0];
+  try { const caps = track.getCapabilities ? track.getCapabilities() : {}; $('#torchBtn').classList.toggle('hidden', !caps.torch);
+        if (caps.focusMode && caps.focusMode.includes('continuous')) track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {}); } catch {}
+  resumeCam();
+}
+function resumeCam(){ camPaused = false; lastRead = ''; sameCount = 0; setStatus('Hold the barcode inside the white box, bars across the red line.'); clearInterval(camTimer); camTimer = setInterval(camTick, 140); if (S.expected) idleVerdict(); }
+function stopCam(){ clearInterval(camTimer); camPaused = true; if (stream){ stream.getTracks().forEach(t => t.stop()); stream = null; } $('#camwrap').classList.remove('on'); $('#camBtn').classList.remove('hidden'); torchOn = false; setStatus(''); }
+$('#torchBtn').addEventListener('click', () => { if (!track) return; torchOn = !torchOn; track.applyConstraints({ advanced: [{ torch: torchOn }] }).catch(() => {}); });
+async function camTick(){
+  if (camBusy || camPaused) return; const v = $('#video'); if (!v.videoWidth) return;
+  camBusy = true;
+  try {
+    let code = null;
+    if (detector){ try { const r = await detector.detect(v); const hit = r.find(x => gs1ok(digits(x.rawValue))); code = hit ? digits(hit.rawValue) : null; } catch {} }
+    else if (zx()){
+      const W = v.videoWidth, H = v.videoHeight, sx = Math.round(W * .08), sy = Math.round(H * .32), sw = Math.round(W * .84), sh = Math.round(H * .36);
+      const sc = Math.min(1, 1280 / sw), w = Math.round(sw * sc), h = Math.round(sh * sc);
+      cv.width = w; cv.height = h; cctx.drawImage(v, sx, sy, sw, sh, 0, 0, w, h);
+      const t = zxGrey(greyFrom(cctx, w, h), w, h); code = t ? digits(t) : null;
+    }
+    if (code && gs1ok(code)){
+      if (code === lastRead) sameCount++; else { lastRead = code; sameCount = 1; }
+      if (sameCount >= 2){ camPaused = true; clearInterval(camTimer); handleCode(code); }
+    }
+  } finally { camBusy = false; }
+}
+
+/* ---------- verify ---------- */
+function handleCode(code){
+  if (!S.session){ showLogin(); return; }
+  const hits = S.items.filter(i => i.code && key14(i.code) === key14(code));
+  const found = hits.map(h => h.model).join(', ');
+  const e = S.expected;
+  if (!e){
+    showVerdict({ status: hits.length ? 'pass' : 'fail', word: hits.length ? found : 'Not listed', why: hits.length ? hits.map(h => h.desc).join(' / ') : 'This code is not in the code list.', code,
+                  meta: [['Note', 'No model picked — lookup only, not recorded.']] });
+    beep(!!hits.length); return;
+  }
+  let status, word, why;
+  if (!e.code){ status = 'warn'; word = 'No master'; why = `${e.model} has no code in the code list. Tell the list owner.`; }
+  else if (hits.some(h => h.model === e.model)){ status = 'pass'; word = 'Pass'; why = `Label code is correct for ${e.model}.`; }
+  else if (hits.length){ status = 'fail'; word = 'Wrong label'; why = `This code belongs to ${found}, not ${e.model}.`; }
+  else { status = 'fail'; word = 'Wrong code'; why = `This code is not in the code list. ${e.model} should be ${fmtCode(e.code)}.`; }
+  const now = new Date();
+  const rec = { id: S.device + '-' + now.getTime(), date: dStr(now), time: tStr(now), form: e.form, customer: e.customer, expected: e.model,
+                expectedCode: e.code, code, found: found || '(not in list)', result: status === 'pass' ? 'PASS' : status === 'fail' ? 'FAIL' : 'CHECK',
+                uid: S.session.uid, inspector: S.session.name, tok: S.session.token, device: S.device, up: false };
+  const log = LS.get('log', []); log.unshift(rec); LS.set('log', log.slice(0, 1000)); renderPill(); flushLog();
+  const remark = status === 'pass' ? `${code} ${e.model} OK` : `NG ${code} = ${found || 'not in list'}, expected ${e.model} ${e.code}`;
+  showVerdict({ status, word, why, code, remark, meta: [['Model picked', `${e.model}  ${fmtCode(e.code)}`], ['Time', rec.time]] });
+  beep(status === 'pass');
+}
+function showVerdict(o){
+  const v = $('#verdict'); v.className = 'verdict ' + (o.status || 'idle'); void v.offsetWidth; v.classList.add('flash');
+  $('#vword').textContent = o.word; $('#vwhy').textContent = o.why || '';
+  $('#vcode').textContent = o.code ? fmtCode(o.code) : '';
+  $('#vmeta').innerHTML = (o.meta || []).map(([k, val]) => `<dt>${esc(k)}</dt><dd>${esc(val)}</dd>`).join('');
+  $('#vactions').innerHTML = stream && o.status !== 'idle' ? '<button class="btn primary" type="button" id="scanNext">Scan next</button>' : '';
+  const nx = $('#scanNext'); if (nx) nx.addEventListener('click', resumeCam);
+  $('#remarkBox').classList.toggle('hidden', !o.remark); $('#remarkTxt').value = o.remark || '';
+  if (stream && o.status !== 'idle') setStatus('');
+}
+function idleVerdict(){ showVerdict({ status: 'idle', word: 'Ready', why: S.expected ? `Open the camera and scan the label for ${S.expected.model}.` : 'Pick the model first.' }); }
+$('#copyRemark').addEventListener('click', async () => {
+  const t = $('#remarkTxt').value; if (!t) return;
+  try { await navigator.clipboard.writeText(t); toast('Copied. Paste into Remarks.'); }
+  catch { const i = $('#remarkTxt'); i.focus(); i.select(); try { document.execCommand('copy'); toast('Copied. Paste into Remarks.'); } catch { toast('Text selected — long-press and copy.'); } }
+});
+
+/* ---------- log in ---------- */
+async function post(body){
+  const r = await fetch(S.sheetUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
+  return r.json();
+}
+function showLogin(msg){
+  stopCam(); S.session = null;
+  $('#appView').classList.add('hidden'); $('#userChip').classList.add('hidden'); $('#loginView').classList.remove('hidden');
+  $('#loginPin').value = ''; $('#loginErr').textContent = msg || '';
+  loadNames();
+}
+async function loadNames(){
+  const sel = $('#loginId'), last = LS.get('lastUid', '');
+  const fill = names => {
+    sel.innerHTML = '<option value="">Choose your name</option>' + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+    const hit = names.find(n => n.toUpperCase() === last); if (hit) sel.value = hit;
+  };
+  fill(LS.get('names', []));
+  if (!S.sheetUrl) return;
+  try {
+    const r = await fetch(S.sheetUrl + (S.sheetUrl.includes('?') ? '&' : '?') + 'action=users', { redirect: 'follow' });
+    const j = await r.json();
+    if (j && j.ok && Array.isArray(j.names)){ LS.set('names', j.names); fill(j.names); }
+  } catch { if (!LS.get('names', []).length) sel.innerHTML = '<option value="">No connection — cannot load names</option>'; }
+}
+$('#loginId').addEventListener('change', () => $('#loginPin').focus());
+function showApp(){
+  $('#loginView').classList.add('hidden'); $('#appView').classList.remove('hidden');
+  $('#userChip').classList.remove('hidden'); $('#userName').textContent = S.session.name;
+  idleVerdict();
+}
+const LOGIN_ERR = { bad_login: 'Wrong PIN.', locked: 'Too many wrong tries. Wait 15 minutes, or ask the owner.', inactive: 'This user is not active. Ask the owner.', no_users_tab: 'The Google Sheet has no “QC Users” tab yet. Ask the owner.' };
+async function doLogin(){
+  const uid = $('#loginId').value.trim().toUpperCase(), pin = $('#loginPin').value.trim();
+  if (!uid || !pin){ $('#loginErr').textContent = 'Choose your name and enter your PIN.'; return; }
+  if (!S.sheetUrl){ $('#loginErr').textContent = 'This file has no Google Sheet link. Ask the owner.'; return; }
+  $('#loginBtn').disabled = true; $('#loginErr').textContent = 'Checking…';
+  try {
+    const j = await post({ action: 'login', uid, pin, device: S.device });
+    if (j && j.ok){ S.session = { token: j.token, uid: j.uid, name: j.name, exp: j.exp }; LS.set('session', S.session); LS.set('lastUid', j.uid); showApp(); toast('Welcome, ' + j.name); }
+    else $('#loginErr').textContent = LOGIN_ERR[j && j.error] || ('Log in failed: ' + (j && j.error || 'unknown'));
+  } catch { $('#loginErr').textContent = 'No connection to Google. Check the internet and try again.'; }
+  finally { $('#loginBtn').disabled = false; $('#loginPin').value = ''; }
+}
+$('#loginBtn').addEventListener('click', doLogin);
+$('#loginPin').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+$('#logoutBtn').addEventListener('click', async () => {
+  const tok = S.session && S.session.token; LS.set('session', null); showLogin('Logged out.');
+  if (tok) post({ action: 'logout', token: tok }).catch(() => {});
+});
+function sessionAlive(s){ return s && s.token && Date.now() < s.exp; }
+setInterval(() => { if (S.session && !sessionAlive(S.session)){ LS.set('session', null); showLogin('Your session ended (12 hours). Please log in again.'); } }, 60000);
+
+/* ---------- start ---------- */
+const cached = LS.get('sheetList', null); if (cached && S.sheetUrl) applyList(cached.items, 'saved copy');
+idleVerdict(); renderPill(); initDetector();
+if (!window.ZXing && !('BarcodeDetector' in window)) banner('The barcode reader did not load. Check the internet connection and reload.', true);
+const saved = LS.get('session', null);
+if (sessionAlive(saved)){
+  S.session = saved; showApp();
+  // confirm the user is still active; offline keeps the session
+  if (S.sheetUrl) post({ action: 'check', token: saved.token }).then(j => { if (j && !j.ok && j.error !== 'server'){ LS.set('session', null); showLogin(LOGIN_ERR[j.error] || 'Please log in again.'); } }).catch(() => {});
+} else showLogin();
+loadList().then(flushLog);
+setInterval(flushLog, 60000); window.addEventListener('online', flushLog);
+})();
+</script>
+</body>
+</html>
